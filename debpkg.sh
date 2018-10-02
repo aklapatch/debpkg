@@ -56,7 +56,7 @@ for srcpkg in $source; do
 done
   
 #run prepare build and package
-export MAKEFLAGS=" -j3 "
+export MAKEFLAGS=" -j4 "
 #unset error due to msg command not being on debain
 set +e
 prepare && build && package 
@@ -75,4 +75,4 @@ printf "Package: $pkgname\nVersion: $pkgver-$pkgrel\nMaintainer: None\nArchitect
 
 sleep 1s
 
-dpkg -b $pkgname 
+dpkg-deb --verbose  -b $pkgdir 
