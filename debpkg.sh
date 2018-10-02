@@ -3,23 +3,17 @@
 # set failure conditions
 set -e
   
-#aliases for makepkg functions
-alias msg="echo "
-
 # get base directory and make source and package directories
 BASEDIR=`dirname $(readlink -f "$0")`
 
 #get file to import package build functions
 source $BASEDIR/PKGBUILD || { echo 'No PKGBUILD found' ; exit 1;}
- 
-echo $BASEDIR
-
-  
+   
 srcdir=$BASEDIR/src
 pkgdir=$BASEDIR/$pkgname
 
-echo "Cleaning up package directories."
-rm -rf  $pkgdir
+echo "Clearing package and source directories"
+rm -rf  "$pkgdir" "$srcdir"
  
 #rm -rf $srcdir $pkgdir
 mkdir -p $srcdir $pkgdir
@@ -62,14 +56,23 @@ for srcpkg in $source; do
 done
   
 #run prepare build and package
-prepare 
-build 
-package 
-        
+export MAKEFLAGS=" -j3 "
+#unset error due to msg command not being on debain
+set +e
+prepare && build && package 
+#set error catch again
+set -e
+
+unset -n MAKEFLAGS
+
 #actually package the package.
-mkdir -p $pkgdir/DEBIAN
+mkdir -p $pkgdir/DEBIAN/
+
+control="$pkgdir/DEBIAN/control"
 
 # butcher control file
-printf "Package: %s \nVersion: %s \nMaintainer: None \nArchitecture: any-x86-64 \nDescription: %s \n" "$pkgname" "$pkgver-$pkgrel"  "$pkgdesc" > $pkgdir/DEBIAN/control
+printf "Package: $pkgname\nVersion: $pkgver-$pkgrel\nMaintainer: None\nArchitecture: any-x86-64\nDescription: $pkgdesc\n\n" > $control
 
-dpkg-deb --build $pkgname               
+sleep 1s
+
+dpkg -b $pkgname 
