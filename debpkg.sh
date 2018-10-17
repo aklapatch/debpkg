@@ -24,7 +24,7 @@ pkgdir=$BASEDIR/pkg
 if [[ "$1" == "-c" || "$2"=="-c" || "$3"=="-c"  ]]
 then
 	echo "Clearing package and source directories"
-	rm -rf  "$pkgdir" "$srcdir"
+	rm -rf  "$pkgdir" "$srcdir" "$BASEDIR/$pkgname"
 fi
  
 # make directories if necessary
@@ -40,16 +40,15 @@ for deps in $depends; do
 done
 
 # get source files
-for url in $source; do
+for src in $source; do
 
-	echo "url = ${url%+*}"
 	# check to see if git was specified
-	if [ "${url%+*}" == 'git' ]
+	if [ "${src%+*}" == 'git' ]
 	then
 		# clone git repo or update it		
-		master="${url#*+}"
-		dir="directory ${url##*/}"
-		echo $dir
+		master="${src#*+}"
+		dir="directory ${src##*/}"
+		
 		if [ -d "$dir" ] 
 		then 
 			echo "Updating $dir git repo"
@@ -60,20 +59,21 @@ for url in $source; do
 			git clone --depth=1 "$master"
 		fi
 	else	# get file if not a git file
-		file="${url##*/}"
+		file="${src##*/}"
         	if [ ! -f $file ]; then
-                	wget ${url}
+                	wget ${src}
         	fi
 	fi
 done
   
 #verify source package
 i=1
-echo "verifying integrity"
-for url in $source; do
-        file="${url##*/}"
-        if [ "${sha256sums[i]}" != 'SKIP'  ]; then
-                if [ "$(sha256sum $file)" = "${sha256sums[i]}" ]; then
+echo "Verifying file integrity"
+for src in $source; do
+        file="${src##*/}"
+        if [ "${sha256sums[$i]}" != 'SKIP'  ]; then
+				 
+                if [ "$(sha256sum $file)" = "${sha256sums[$i]}" ]; then
                         echo "$file failed the integrity check."
                 fi
         fi
@@ -81,15 +81,15 @@ for url in $source; do
 done
   
 #extract files
-for url in $source; do
-		echo "url = ${url%+*}"
+for src in $source; do
+		
 		# check to see if git was specified
-		if [ "${url%+*}" == 'git' ]
+		if [ "${src%+*}" == 'git' ]
 		then
 			# clone git repo or update it		
-			master="${url#*+}"
-			dir="directory ${url##*/}"
-			echo $dir
+			master="${src#*+}"
+			dir="directory ${src##*/}"
+			
 			if [ -d "$dir" ] 
 			then
 				#copy to sourcedir
@@ -97,32 +97,36 @@ for url in $source; do
 			fi
 		else
 			# extract file to directory
-			file="${url##*/}"
+			file="${src##*/}"
 			echo "Extracting $file to $srcdir"
 			tar -xf $file -C $srcdir
 		fi
 done
   
-#run prepare build and package
+# set up flags to build
 export MAKEFLAGS="-j4"
 export CFLAGS="-march=native -O2 -pipe"
 export CXXFLAGS="${CFLAGS}"
+
 #unset error due to msg command not being on debain
 set +e
 
+# Run through PKGBUILD functions
 prepare
 build
 cd $srcdir
 package 
 cd $srcdir
+
 #set error catch again
 set -e
 
+#unset build flags
 unset -n MAKEFLAGS
 unset -n CFLAGS
 unset -n CXXFLAGS
 
-#actually package the package
+# move files to pkgdir and ready package directory
 cd $BASEDIR
 mkdir -p $pkgname
 cd $pkgdir
@@ -132,7 +136,25 @@ mkdir -p $pkgname/DEBIAN/
 
 control="$pkgname/DEBIAN/control"
 
-# butcher control file
-printf "Package: $pkgname\nVersion: $pkgver-$pkgrel\nMaintainer: None\nArchitecture: amd64\nDescription: $pkgdesc\n\n" > $control
+# butcher control file from PKGBUILD info
+printf "Package: $pkgname\nVersion: $pkgver-$pkgrel\nMaintainer: None\nArchitecture: amd64\nDescription: $pkgdesc\n" > $control
 
+# add conflicts info to control file
+printf "Conflicts: " >> $control
+
+for con in $conflicts; do
+	printf "$con " >> $control
+done
+printf "\n" >> $control
+
+# add url to control file
+printf "Homepage: " >> $control
+
+for addr in $url; do
+	echo $addr
+	printf "$addr " >> $control
+done
+printf "\n" >> $control
+
+# package final product
 dpkg-deb --verbose  -b $pkgname 
