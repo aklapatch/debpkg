@@ -2,9 +2,8 @@
 
 # TODO add md5sum verification
 
-echo "$1"
 #get pkgbuild from AUR
-if [[ "$1" != "" ]]; then
+if [[ "$1" != "" && "$1" != "-c"  ]]; then
 	git clone --depth=1 "https://aur.archlinux.org/$1.git" recipe
 	mv -f recipe/PKGBUILD ./PKGBUILD
 	rm -rf recipe
@@ -19,10 +18,10 @@ BASEDIR=`dirname $(readlink -f "$0")`
 source $BASEDIR/PKGBUILD || { echo 'No PKGBUILD found' ; exit 1;}
    
 srcdir=$BASEDIR/src
-pkgdir=$BASEDIR/$pkgname
+pkgdir=$BASEDIR/pkg
 
 #clean up source if specified
-if [ "$1" == "-c" ]
+if [[ "$1" == "-c" || "$2"=="-c" || "$3"=="-c"  ]]
 then
 	echo "Clearing package and source directories"
 	rm -rf  "$pkgdir" "$srcdir"
@@ -94,7 +93,7 @@ for url in $source; do
 			if [ -d "$dir" ] 
 			then
 				#copy to sourcedir
-				cp -r $dir $pkgdir/$dir
+				cp -r $dir $srcdir/$dir
 			fi
 		else
 			# extract file to directory
@@ -110,9 +109,12 @@ export CFLAGS="-march=native -O2 -pipe"
 export CXXFLAGS="${CFLAGS}"
 #unset error due to msg command not being on debain
 set +e
+
 prepare
-build 
+build
+cd $srcdir
 package 
+cd $srcdir
 #set error catch again
 set -e
 
@@ -120,14 +122,17 @@ unset -n MAKEFLAGS
 unset -n CFLAGS
 unset -n CXXFLAGS
 
-#actually package the package.
-mkdir -p $pkgdir/DEBIAN/
+#actually package the package
+cd $BASEDIR
+mkdir -p $pkgname
+cd $pkgdir
+cp -r * "$BASEDIR/$pkgname"
+cd $BASEDIR
+mkdir -p $pkgname/DEBIAN/
 
-control="$pkgdir/DEBIAN/control"
+control="$pkgname/DEBIAN/control"
 
 # butcher control file
 printf "Package: $pkgname\nVersion: $pkgver-$pkgrel\nMaintainer: None\nArchitecture: amd64\nDescription: $pkgdesc\n\n" > $control
 
-sleep 1s
-
-dpkg-deb --verbose  -b $pkgdir 
+dpkg-deb --verbose  -b $pkgname 
