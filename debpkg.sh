@@ -1,5 +1,14 @@
 #!/bin/bash
 
+# TODO add md5sum verification
+
+echo "$1"
+#get pkgbuild from AUR
+if [[ "$1" != "" ]]; then
+	git clone --depth=1 "https://aur.archlinux.org/$1.git" recipe
+	mv -f recipe/PKGBUILD ./PKGBUILD
+	rm -rf recipe
+fi
 # set failure conditions
 set -e
   
@@ -13,7 +22,7 @@ srcdir=$BASEDIR/src
 pkgdir=$BASEDIR/$pkgname
 
 #clean up source if specified
-if [ $1 == "-c" ]
+if [ "$1" == "-c" ]
 then
 	echo "Clearing package and source directories"
 	rm -rf  "$pkgdir" "$srcdir"
@@ -69,7 +78,7 @@ for url in $source; do
                         echo "$file failed the integrity check."
                 fi
         fi
-        i=i+1
+        i=$i+1
 done
   
 #extract files
@@ -96,14 +105,20 @@ for url in $source; do
 done
   
 #run prepare build and package
-export MAKEFLAGS=" -j4 "
+export MAKEFLAGS="-j4"
+export CFLAGS="-march=native -O2 -pipe"
+export CXXFLAGS="${CFLAGS}"
 #unset error due to msg command not being on debain
 set +e
-prepare && build && package 
+prepare
+build 
+package 
 #set error catch again
 set -e
 
 unset -n MAKEFLAGS
+unset -n CFLAGS
+unset -n CXXFLAGS
 
 #actually package the package.
 mkdir -p $pkgdir/DEBIAN/
@@ -111,7 +126,7 @@ mkdir -p $pkgdir/DEBIAN/
 control="$pkgdir/DEBIAN/control"
 
 # butcher control file
-printf "Package: $pkgname\nVersion: $pkgver-$pkgrel\nMaintainer: None\nArchitecture: any-x86-64\nDescription: $pkgdesc\n\n" > $control
+printf "Package: $pkgname\nVersion: $pkgver-$pkgrel\nMaintainer: None\nArchitecture: amd64\nDescription: $pkgdesc\n\n" > $control
 
 sleep 1s
 
